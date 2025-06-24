@@ -16,13 +16,12 @@ interface ExchangeWithDetails extends Exchange {
     toCurrencyName: string;
 }
 export declare class ExchangeService {
+    static getUserExchanges(userId: number, limit?: number, offset?: number): Promise<ExchangeWithDetails[]>;
+    static getExchangeById(exchangeId: number): Promise<Exchange | null>;
     static createExchange(exchangeData: CreateExchangeData): Promise<Exchange>;
     static processExchange(exchangeId: number): Promise<Exchange>;
-    static getExchangeById(exchangeId: number): Promise<Exchange | null>;
-    static getUserExchanges(userId: number, limit?: number, offset?: number): Promise<ExchangeWithDetails[]>;
     static getExchangesByStatus(status: ExchangeStatus, limit?: number, offset?: number): Promise<ExchangeWithDetails[]>;
     static cancelExchange(exchangeId: number, userId: number): Promise<Exchange>;
-    static getUserExchangeStats(userId: number): Promise<any>;
     private static validateUser;
     private static validateCryptocurrency;
     private static validateUserBalance;

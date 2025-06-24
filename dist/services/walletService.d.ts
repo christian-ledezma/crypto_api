@@ -17,6 +17,7 @@ export interface WalletWithCrypto extends Wallet {
 export declare const walletService: {
     getUserWallets: (userId: number) => Promise<WalletWithCrypto[]>;
     getWallet: (walletId: number) => Promise<WalletWithCrypto | null>;
+    getBalanceByCrypto: (userId: number, cryptoId: number) => Promise<WalletWithCrypto | null>;
     getUserWalletForCrypto: (userId: number, cryptocurrencyId: number) => Promise<WalletWithCrypto | null>;
     createWallet: (userId: number, cryptocurrencyId: number) => Promise<WalletWithCrypto>;
     updateWalletBalance: (walletId: number, amount: number, operation: "add" | "subtract" | "set") => Promise<WalletWithCrypto>;
@@ -24,10 +25,8 @@ export declare const walletService: {
         fromWallet: WalletWithCrypto;
         toWallet: WalletWithCrypto;
     }>;
-    getUserTotalBalance: (userId: number) => Promise<WalletWithCrypto[]>;
     deleteWallet: (walletId: number) => Promise<boolean>;
     mapRowToWalletWithCrypto: (row: WalletRowWithCrypto) => WalletWithCrypto;
-    getBalanceByCrypto: (userId: number, cryptoId: number) => Promise<WalletWithCrypto | null>;
 };
 export {};
 //# sourceMappingURL=walletService.d.ts.map

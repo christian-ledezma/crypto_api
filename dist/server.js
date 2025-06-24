@@ -15,8 +15,16 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '3000');
 app.use((0, helmet_1.default)());
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim());
 app.use((0, cors_1.default)({
-    origin: ['http://localhost:4200', 'http://localhost:4201'],
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('No permitido por CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -37,7 +45,8 @@ const routes = [
     { path: '/api/users', module: './routes/users' },
     { path: '/api/wallets', module: './routes/wallets' },
     { path: '/api/exchanges', module: './routes/exchanges' },
-    { path: '/api/cryptocurrencies', module: './routes/cryptocurrencies' }
+    { path: '/api/cryptocurrencies', module: './routes/cryptocurrencies' },
+    { path: '/api/health', module: './routes/health' }
 ];
 routes.forEach(route => {
     try {

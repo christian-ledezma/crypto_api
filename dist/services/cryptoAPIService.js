@@ -17,78 +17,113 @@ class CryptoApiService {
             }
         });
         this.apiClient.interceptors.request.use((config) => {
-            console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+            console.log(`🚀 Crypto API: ${config.method?.toUpperCase()} ${config.url}`);
             return config;
-        }, (error) => {
-            console.error('❌ API Request Error:', error);
-            return Promise.reject(error);
         });
         this.apiClient.interceptors.response.use((response) => {
-            console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+            console.log(`✅ Crypto API Response: ${response.status}`);
             return response;
         }, (error) => {
-            console.error(`❌ API Response Error: ${error.response?.status} ${error.config?.url}`, error.response?.data);
+            console.error(`❌ Crypto API Error: ${error.response?.status}`, error.response?.data);
             return Promise.reject(error);
         });
     }
-    static async getAvailableSymbols() {
+    static async healthCheck() {
+        const startTime = Date.now();
         try {
-            const cacheKey = 'symbols';
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
-            const response = await this.apiClient.get('/v1/symbols/details');
-            const symbols = response.data.filter(symbol => symbol.status === 'open');
-            this.setCache(cacheKey, symbols);
+            const response = await this.apiClient.get('/v1/symbols', { timeout: 5000 });
+            return {
+                status: 'healthy',
+                latency: Date.now() - startTime,
+                details: { symbolsCount: response.data?.length || 0 }
+            };
+        }
+        catch (error) {
+            return {
+                status: 'unhealthy',
+                latency: Date.now() - startTime,
+                details: { error: error.message }
+            };
+        }
+    }
+    static async getAvailableSymbols() {
+        const cacheKey = 'symbols';
+        const cached = this.getFromCache(cacheKey);
+        if (cached)
+            return cached;
+        try {
+            const response = await this.apiClient.get('/v1/symbols');
+            const detailsResponse = await this.apiClient.get('/v1/symbols/details');
+            const availableSymbols = response.data;
+            const symbolsDetails = detailsResponse.data;
+            const symbols = availableSymbols
+                .map(symbol => symbolsDetails.find(detail => detail.symbol === symbol))
+                .filter((symbol) => symbol !== undefined && symbol.status === 'open');
+            this.setCache(cacheKey, symbols, 300000);
             return symbols;
         }
         catch (error) {
-            console.error('Error obteniendo símbolos:', error);
-            throw new Error('No se pudieron obtener los símbolos disponibles');
+            console.error('Error obteniendo símbolos:', {
+                message: error.message,
+                response: error.response?.data,
+                url: error.config?.url
+            });
+            const fallbackSymbols = [
+                {
+                    symbol: 'btcusd',
+                    base_currency: 'btc',
+                    quote_currency: 'usd',
+                    min_order_size: '0.00001',
+                    status: 'open'
+                },
+                {
+                    symbol: 'ethusd',
+                    base_currency: 'eth',
+                    quote_currency: 'usd',
+                    min_order_size: '0.001',
+                    status: 'open'
+                }
+            ];
+            console.warn('Usando símbolos de fallback');
+            return fallbackSymbols;
         }
     }
     static async getCurrentPrice(symbol) {
+        const normalizedSymbol = symbol.toLowerCase().replace(/usd$/, '') + 'usd';
+        const baseSymbol = normalizedSymbol.replace(/usd$/, '');
+        const cacheKey = `price_${normalizedSymbol}`;
         try {
-            const cacheKey = `price_${symbol.toLowerCase()}`;
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
-            const response = await this.apiClient.get(`/v1/pubticker/${symbol.toLowerCase()}`);
-            const ticker = response.data;
+            const isValid = await this.isValidSymbol(baseSymbol);
+            if (!isValid) {
+                throw new Error(`Símbolo ${baseSymbol} no soportado`);
+            }
+            const response = await this.apiClient.get(`/v1/pubticker/${normalizedSymbol}`, { timeout: 3000 });
+            if (!response.data?.close) {
+                throw new Error('Formato de respuesta inesperado');
+            }
+            const price = parseFloat(response.data.close);
+            if (isNaN(price)) {
+                throw new Error('Precio no numérico recibido');
+            }
             const priceData = {
-                symbol: symbol.toUpperCase(),
-                price: parseFloat(ticker.close),
-                change24h: ticker.changes ? parseFloat(ticker.changes[0]) : 0,
-                volume24h: 0,
+                symbol: baseSymbol.toUpperCase(),
+                price: price,
                 lastUpdate: new Date()
             };
             this.setCache(cacheKey, priceData, 10000);
             return priceData;
         }
         catch (error) {
-            console.error(`Error obteniendo precio de ${symbol}:`, error);
-            throw new Error(`No se pudo obtener el precio de ${symbol}`);
-        }
-    }
-    static async getMultiplePrices(symbols) {
-        try {
-            const promises = symbols.map(symbol => this.getCurrentPrice(symbol));
-            const results = await Promise.allSettled(promises);
-            return results
-                .filter((result) => result.status === 'fulfilled')
-                .map(result => result.value);
-        }
-        catch (error) {
-            console.error('Error obteniendo múltiples precios:', error);
-            throw new Error('No se pudieron obtener todos los precios solicitados');
+            console.error(`Error obteniendo precio para ${normalizedSymbol}:`, error);
+            throw new Error(`No se pudo obtener el precio de ${baseSymbol}: ${error.message}`);
         }
     }
     static async getExchangeRate(fromSymbol, toSymbol) {
+        const cacheKey = `rate_${fromSymbol}_${toSymbol}`.toLowerCase();
+        const cached = this.getFromCache(cacheKey);
+        if (cached)
+            return cached;
         try {
-            const cacheKey = `rate_${fromSymbol}_${toSymbol}`.toLowerCase();
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
             if (fromSymbol.toLowerCase() === toSymbol.toLowerCase()) {
                 return {
                     fromSymbol: fromSymbol.toUpperCase(),
@@ -97,75 +132,22 @@ class CryptoApiService {
                     timestamp: new Date()
                 };
             }
-            const fromPrice = await this.getCurrentPrice(`${fromSymbol}usd`);
-            const toPrice = await this.getCurrentPrice(`${toSymbol}usd`);
-            const rate = fromPrice.price / toPrice.price;
+            const [fromPrice, toPrice] = await Promise.all([
+                this.getCurrentPrice(`${fromSymbol}usd`),
+                this.getCurrentPrice(`${toSymbol}usd`)
+            ]);
             const exchangeRate = {
                 fromSymbol: fromSymbol.toUpperCase(),
                 toSymbol: toSymbol.toUpperCase(),
-                rate,
+                rate: fromPrice.price / toPrice.price,
                 timestamp: new Date()
             };
             this.setCache(cacheKey, exchangeRate, 15000);
             return exchangeRate;
         }
         catch (error) {
-            console.error(`Error obteniendo tasa de cambio ${fromSymbol}/${toSymbol}:`, error);
-            throw new Error(`No se pudo obtener la tasa de cambio entre ${fromSymbol} y ${toSymbol}`);
-        }
-    }
-    static async getOrderBook(symbol, limit = 50) {
-        try {
-            const cacheKey = `orderbook_${symbol.toLowerCase()}_${limit}`;
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
-            const response = await this.apiClient.get(`/v1/book/${symbol.toLowerCase()}`, { params: { limit_bids: limit, limit_asks: limit } });
-            this.setCache(cacheKey, response.data, 5000);
-            return response.data;
-        }
-        catch (error) {
-            console.error(`Error obteniendo libro de órdenes de ${symbol}:`, error);
-            throw new Error(`No se pudo obtener el libro de órdenes de ${symbol}`);
-        }
-    }
-    static async getRecentTrades(symbol, limit = 50) {
-        try {
-            const cacheKey = `trades_${symbol.toLowerCase()}_${limit}`;
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
-            const response = await this.apiClient.get(`/v1/trades/${symbol.toLowerCase()}`, { params: { limit_trades: limit } });
-            this.setCache(cacheKey, response.data, 15000);
-            return response.data;
-        }
-        catch (error) {
-            console.error(`Error obteniendo trades de ${symbol}:`, error);
-            throw new Error(`No se pudieron obtener los trades recientes de ${symbol}`);
-        }
-    }
-    static async getCandlestickData(symbol, timeframe = '1hr') {
-        try {
-            const cacheKey = `candles_${symbol.toLowerCase()}_${timeframe}`;
-            const cached = this.getFromCache(cacheKey);
-            if (cached)
-                return cached;
-            const response = await this.apiClient.get(`/v2/candles/${symbol.toLowerCase()}/${timeframe}`);
-            const candles = response.data.map(candle => ({
-                time: candle[0],
-                open: candle[1],
-                high: candle[2],
-                low: candle[3],
-                close: candle[4],
-                volume: candle[5]
-            }));
-            const cacheDuration = timeframe === '1m' ? 60000 : 300000;
-            this.setCache(cacheKey, candles, cacheDuration);
-            return candles;
-        }
-        catch (error) {
-            console.error(`Error obteniendo velas de ${symbol}:`, error);
-            throw new Error(`No se pudieron obtener las velas de ${symbol}`);
+            console.error(`Error obteniendo tasa ${fromSymbol}/${toSymbol}:`, error);
+            throw new Error(`No se pudo obtener la tasa de cambio`);
         }
     }
     static async isValidSymbol(symbol) {
@@ -174,26 +156,11 @@ class CryptoApiService {
             return symbols.some(s => s.symbol.toLowerCase() === symbol.toLowerCase());
         }
         catch (error) {
-            console.error(`Error validando símbolo ${symbol}:`, error);
             return false;
         }
     }
-    static async getMarketData(symbol) {
-        try {
-            const [price, orderBook, recentTrades] = await Promise.all([
-                this.getCurrentPrice(symbol),
-                this.getOrderBook(symbol, 20),
-                this.getRecentTrades(symbol, 20)
-            ]);
-            return { price, orderBook, recentTrades };
-        }
-        catch (error) {
-            console.error(`Error obteniendo datos de mercado de ${symbol}:`, error);
-            throw new Error(`No se pudieron obtener los datos de mercado de ${symbol}`);
-        }
-    }
     static calculateExchangeAmount(fromAmount, exchangeRate) {
-        return fromAmount * exchangeRate;
+        return Number((fromAmount * exchangeRate).toFixed(8));
     }
     static async validateTradingAmount(symbol, amount) {
         try {
@@ -205,36 +172,32 @@ class CryptoApiService {
             return amount >= minOrderSize && amount <= 1000000;
         }
         catch (error) {
-            console.error(`Error validating trading amount for ${symbol}:`, error);
             return amount > 0 && amount <= 1000000;
         }
     }
     static getFromCache(key) {
-        const cached = this.priceCache.get(key);
+        const cached = this.cache.get(key);
         if (!cached)
             return null;
         if (Date.now() - cached.timestamp > this.CACHE_TTL) {
-            this.priceCache.delete(key);
+            this.cache.delete(key);
             return null;
         }
         return cached.data;
     }
     static setCache(key, data, ttl = this.CACHE_TTL) {
-        this.priceCache.set(key, {
-            data,
-            timestamp: Date.now()
-        });
+        this.cache.set(key, { data, timestamp: Date.now() });
         setTimeout(() => {
-            this.priceCache.delete(key);
+            this.cache.delete(key);
         }, ttl);
     }
     static clearCache() {
-        this.priceCache.clear();
+        this.cache.clear();
     }
     static getCacheStats() {
         return {
-            size: this.priceCache.size,
-            keys: Array.from(this.priceCache.keys())
+            size: this.cache.size,
+            keys: Array.from(this.cache.keys())
         };
     }
 }
@@ -242,6 +205,6 @@ exports.CryptoApiService = CryptoApiService;
 CryptoApiService.BASE_URL = 'https://api.gemini.com';
 CryptoApiService.SANDBOX_URL = 'https://api.sandbox.gemini.com';
 CryptoApiService.CACHE_TTL = 30000;
-CryptoApiService.priceCache = new Map();
+CryptoApiService.cache = new Map();
 CryptoApiService.initialize();
 //# sourceMappingURL=cryptoAPIService.js.map

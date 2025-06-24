@@ -14,23 +14,7 @@ export declare class UserService {
     static getUserWithPassword(email: string): Promise<(User & {
         password_hash: string;
     }) | null>;
-    static updateUser(id: number, updateData: {
-        username?: string;
-        email?: string;
-        firstName?: string;
-        lastName?: string;
-        phone?: string;
-    }): Promise<User | null>;
-    static changePassword(id: number, newPassword: string): Promise<boolean>;
-    static verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean>;
-    static verifyEmail(id: number): Promise<boolean>;
-    static deleteUser(id: number): Promise<boolean>;
-    static getAllUsers(page?: number, limit?: number): Promise<{
-        users: User[];
-        totalCount: number;
-        totalPages: number;
-        currentPage: number;
-    }>;
     private static mapRowToUser;
+    static verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean>;
 }
 //# sourceMappingURL=userService.d.ts.map

@@ -9,10 +9,7 @@ interface AuthRequest extends Request {
 export declare const userController: {
     createUser: (req: Request, res: Response) => Promise<void>;
     getProfile: (req: AuthRequest, res: Response) => Promise<void>;
-    updateProfile: (req: AuthRequest, res: Response) => Promise<void>;
     getUserById: (req: AuthRequest, res: Response) => Promise<void>;
-    deleteAccount: (req: AuthRequest, res: Response) => Promise<void>;
-    changePassword: (req: AuthRequest, res: Response) => Promise<void>;
 };
 export {};
 //# sourceMappingURL=userController.d.ts.map

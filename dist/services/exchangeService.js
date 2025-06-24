@@ -4,6 +4,51 @@ exports.ExchangeService = void 0;
 const databaseService_1 = require("./databaseService");
 const cryptoAPIService_1 = require("./cryptoAPIService");
 class ExchangeService {
+    static async getUserExchanges(userId, limit = 50, offset = 0) {
+        try {
+            const query = `
+        SELECT 
+          e.*,
+          u1.username as fromUserUsername,
+          u2.username as toUserUsername,
+          c1.symbol as fromCurrencySymbol,
+          c1.name as fromCurrencyName,
+          c2.symbol as toCurrencySymbol,
+          c2.name as toCurrencyName
+        FROM EXCHANGE e
+        JOIN USER u1 ON e.from_user_id = u1.id
+        JOIN USER u2 ON e.to_user_id = u2.id
+        JOIN CRYPTOCURRENCIES c1 ON e.from_currency_id = c1.id
+        JOIN CRYPTOCURRENCIES c2 ON e.to_currency_id = c2.id
+        WHERE e.from_user_id = ? OR e.to_user_id = ?
+        ORDER BY e.id DESC
+        LIMIT ? OFFSET ?
+      `;
+            const [rows] = await databaseService_1.db.execute(query, [userId, userId, limit, offset]);
+            return rows.map((row) => this.mapRowToExchangeWithDetails(row));
+        }
+        catch (error) {
+            console.error('Error obteniendo intercambios del usuario:', error);
+            throw error;
+        }
+    }
+    static async getExchangeById(exchangeId) {
+        try {
+            const query = `
+        SELECT * FROM EXCHANGE 
+        WHERE id = ?
+      `;
+            const [rows] = await databaseService_1.db.execute(query, [exchangeId]);
+            if (!rows || rows.length === 0) {
+                return null;
+            }
+            return this.mapRowToExchange(rows[0]);
+        }
+        catch (error) {
+            console.error('Error obteniendo intercambio:', error);
+            throw error;
+        }
+    }
     static async createExchange(exchangeData) {
         return await databaseService_1.db.transaction(async (connection) => {
             try {
@@ -83,51 +128,6 @@ class ExchangeService {
             }
         });
     }
-    static async getExchangeById(exchangeId) {
-        try {
-            const query = `
-        SELECT * FROM EXCHANGE 
-        WHERE id = ?
-      `;
-            const [rows] = await databaseService_1.db.execute(query, [exchangeId]);
-            if (!rows || rows.length === 0) {
-                return null;
-            }
-            return this.mapRowToExchange(rows[0]);
-        }
-        catch (error) {
-            console.error('Error obteniendo intercambio:', error);
-            throw error;
-        }
-    }
-    static async getUserExchanges(userId, limit = 50, offset = 0) {
-        try {
-            const query = `
-        SELECT 
-          e.*,
-          u1.username as fromUserUsername,
-          u2.username as toUserUsername,
-          c1.symbol as fromCurrencySymbol,
-          c1.name as fromCurrencyName,
-          c2.symbol as toCurrencySymbol,
-          c2.name as toCurrencyName
-        FROM EXCHANGE e
-        JOIN USER u1 ON e.from_user_id = u1.id
-        JOIN USER u2 ON e.to_user_id = u2.id
-        JOIN CRYPTOCURRENCIES c1 ON e.from_currency_id = c1.id
-        JOIN CRYPTOCURRENCIES c2 ON e.to_currency_id = c2.id
-        WHERE e.from_user_id = ? OR e.to_user_id = ?
-        ORDER BY e.id DESC
-        LIMIT ? OFFSET ?
-      `;
-            const [rows] = await databaseService_1.db.execute(query, [userId, userId, limit, offset]);
-            return rows.map((row) => this.mapRowToExchangeWithDetails(row));
-        }
-        catch (error) {
-            console.error('Error obteniendo intercambios del usuario:', error);
-            throw error;
-        }
-    }
     static async getExchangesByStatus(status, limit = 50, offset = 0) {
         try {
             const query = `
@@ -182,34 +182,6 @@ class ExchangeService {
                 throw error;
             }
         });
-    }
-    static async getUserExchangeStats(userId) {
-        try {
-            const query = `
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-          SUM(CASE WHEN from_user_id = ? AND status = 'completed' THEN from_amount ELSE 0 END) as totalSent,
-          SUM(CASE WHEN to_user_id = ? AND status = 'completed' THEN to_amount ELSE 0 END) as totalReceived
-        FROM EXCHANGE 
-        WHERE from_user_id = ? OR to_user_id = ?
-      `;
-            const [rows] = await databaseService_1.db.execute(query, [userId, userId, userId, userId]);
-            return rows[0] || {
-                total: 0,
-                completed: 0,
-                pending: 0,
-                failed: 0,
-                totalSent: 0,
-                totalReceived: 0
-            };
-        }
-        catch (error) {
-            console.error('Error obteniendo estadísticas de intercambios:', error);
-            throw error;
-        }
     }
     static async validateUser(userId) {
         try {

@@ -52,6 +52,19 @@ exports.walletService = {
             throw new Error('Error al obtener la wallet');
         }
     },
+    getBalanceByCrypto: async (userId, cryptoId) => {
+        try {
+            const wallet = await exports.walletService.getUserWalletForCrypto(userId, cryptoId);
+            if (!wallet) {
+                throw new Error('No se encontró la wallet para la criptomoneda especificada');
+            }
+            return wallet;
+        }
+        catch (error) {
+            console.error('Error al obtener balance por criptomoneda:', error);
+            throw error;
+        }
+    },
     getUserWalletForCrypto: async (userId, cryptocurrencyId) => {
         try {
             const query = `
@@ -208,16 +221,6 @@ exports.walletService = {
             throw error;
         }
     },
-    getUserTotalBalance: async (userId) => {
-        try {
-            const wallets = await exports.walletService.getUserWallets(userId);
-            return wallets.filter(wallet => wallet.balance > 0);
-        }
-        catch (error) {
-            console.error('Error al obtener balance total del usuario:', error);
-            throw new Error('Error al obtener el balance total del usuario');
-        }
-    },
     deleteWallet: async (walletId) => {
         try {
             const wallet = await exports.walletService.getWallet(walletId);
@@ -248,18 +251,5 @@ exports.walletService = {
             cryptoName: row.name
         };
     },
-    getBalanceByCrypto: async (userId, cryptoId) => {
-        try {
-            const wallet = await exports.walletService.getUserWalletForCrypto(userId, cryptoId);
-            if (!wallet) {
-                throw new Error('No se encontró la wallet para la criptomoneda especificada');
-            }
-            return wallet;
-        }
-        catch (error) {
-            console.error('Error al obtener balance por criptomoneda:', error);
-            throw error;
-        }
-    }
 };
 //# sourceMappingURL=walletService.js.map

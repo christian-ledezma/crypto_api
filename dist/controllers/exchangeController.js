@@ -31,6 +31,62 @@ class ExchangeController {
             });
         }
     }
+    static async getSentExchanges(req, res) {
+        try {
+            const userId = req.user?.id;
+            const { limit = '50', offset = '0' } = req.query;
+            if (!userId) {
+                res.status(401).json({
+                    error: 'Usuario no autenticado'
+                });
+                return;
+            }
+            const exchanges = await exchangeService_1.ExchangeService.getUserSentExchanges(userId, parseInt(limit), parseInt(offset));
+            res.status(200).json({
+                exchanges,
+                pagination: {
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    total: exchanges.length
+                }
+            });
+        }
+        catch (error) {
+            console.error('Error en getSentExchanges:', error);
+            res.status(500).json({
+                error: 'Error interno del servidor',
+                message: error.message
+            });
+        }
+    }
+    static async getReceivedExchanges(req, res) {
+        try {
+            const userId = req.user?.id;
+            const { limit = '50', offset = '0' } = req.query;
+            if (!userId) {
+                res.status(401).json({
+                    error: 'Usuario no autenticado'
+                });
+                return;
+            }
+            const exchanges = await exchangeService_1.ExchangeService.getUserReceivedExchanges(userId, parseInt(limit), parseInt(offset));
+            res.status(200).json({
+                exchanges,
+                pagination: {
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    total: exchanges.length
+                }
+            });
+        }
+        catch (error) {
+            console.error('Error en getReceivedExchanges:', error);
+            res.status(500).json({
+                error: 'Error interno del servidor',
+                message: error.message
+            });
+        }
+    }
     static async getExchangeById(req, res) {
         try {
             const { id } = req.params;
@@ -154,62 +210,6 @@ class ExchangeController {
         }
         catch (error) {
             console.error('Error en updateStatus:', error);
-            res.status(500).json({
-                error: 'Error interno del servidor',
-                message: error.message
-            });
-        }
-    }
-    static async getSentExchanges(req, res) {
-        try {
-            const userId = req.user?.id;
-            const { limit = '50', offset = '0' } = req.query;
-            if (!userId) {
-                res.status(401).json({
-                    error: 'Usuario no autenticado'
-                });
-                return;
-            }
-            const exchanges = await exchangeService_1.ExchangeService.getUserSentExchanges(userId, parseInt(limit), parseInt(offset));
-            res.status(200).json({
-                exchanges,
-                pagination: {
-                    limit: parseInt(limit),
-                    offset: parseInt(offset),
-                    total: exchanges.length
-                }
-            });
-        }
-        catch (error) {
-            console.error('Error en getSentExchanges:', error);
-            res.status(500).json({
-                error: 'Error interno del servidor',
-                message: error.message
-            });
-        }
-    }
-    static async getReceivedExchanges(req, res) {
-        try {
-            const userId = req.user?.id;
-            const { limit = '50', offset = '0' } = req.query;
-            if (!userId) {
-                res.status(401).json({
-                    error: 'Usuario no autenticado'
-                });
-                return;
-            }
-            const exchanges = await exchangeService_1.ExchangeService.getUserReceivedExchanges(userId, parseInt(limit), parseInt(offset));
-            res.status(200).json({
-                exchanges,
-                pagination: {
-                    limit: parseInt(limit),
-                    offset: parseInt(offset),
-                    total: exchanges.length
-                }
-            });
-        }
-        catch (error) {
-            console.error('Error en getReceivedExchanges:', error);
             res.status(500).json({
                 error: 'Error interno del servidor',
                 message: error.message

@@ -22,29 +22,7 @@ exports.WalletController = {
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     },
-    getWallet: async (req, res) => {
-        try {
-            const walletId = parseInt(req.params.id);
-            if (isNaN(walletId)) {
-                res.status(400).json({ error: 'ID de wallet inválido' });
-                return;
-            }
-            const wallet = await walletService_1.walletService.getWallet(walletId);
-            if (!wallet) {
-                res.status(404).json({ error: 'Wallet no encontrada' });
-                return;
-            }
-            res.json({
-                message: 'Wallet obtenida exitosamente',
-                wallet
-            });
-        }
-        catch (error) {
-            console.error('Error obteniendo wallet:', error);
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
-    getUserWalletForCrypto: async (req, res) => {
+    getBalanceByCrypto: async (req, res) => {
         try {
             const userId = parseInt(req.params.userId);
             const cryptoId = parseInt(req.params.cryptoId);
@@ -52,21 +30,21 @@ exports.WalletController = {
                 res.status(400).json({ error: 'IDs inválidos' });
                 return;
             }
-            const wallet = await walletService_1.walletService.getUserWalletForCrypto(userId, cryptoId);
-            if (!wallet) {
+            const balance = await walletService_1.walletService.getBalanceByCrypto(userId, cryptoId);
+            if (balance === null) {
                 res.status(404).json({
-                    error: 'Wallet no encontrada para esta criptomoneda',
+                    error: 'No se encontró balance para esta criptomoneda',
                     message: 'El usuario no tiene una wallet para esta criptomoneda'
                 });
                 return;
             }
             res.json({
-                message: 'Wallet obtenida exitosamente',
-                wallet
+                message: 'Balance obtenido exitosamente',
+                balance
             });
         }
         catch (error) {
-            console.error('Error obteniendo wallet por criptomoneda:', error);
+            console.error('Error obteniendo balance por criptomoneda:', error);
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     },
@@ -199,31 +177,6 @@ exports.WalletController = {
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     },
-    getUserTotalBalance: async (req, res) => {
-        try {
-            const userId = parseInt(req.params.userId);
-            if (isNaN(userId)) {
-                res.status(400).json({ error: 'ID de usuario inválido' });
-                return;
-            }
-            const walletsWithBalance = await walletService_1.walletService.getUserTotalBalance(userId);
-            const totalBalance = walletsWithBalance.reduce((sum, wallet) => sum + wallet.balance, 0);
-            res.json({
-                message: 'Balance total obtenido exitosamente',
-                userId,
-                totalWallets: walletsWithBalance.length,
-                wallets: walletsWithBalance,
-                summary: {
-                    walletsWithBalance: walletsWithBalance.length,
-                    totalCryptoHoldings: totalBalance.toFixed(8)
-                }
-            });
-        }
-        catch (error) {
-            console.error('Error obteniendo balance total:', error);
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
     deleteWallet: async (req, res) => {
         try {
             const walletId = parseInt(req.params.id);
@@ -256,32 +209,6 @@ exports.WalletController = {
                     return;
                 }
             }
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
-    getBalanceByCrypto: async (req, res) => {
-        try {
-            const userId = parseInt(req.params.userId);
-            const cryptoId = parseInt(req.params.cryptoId);
-            if (isNaN(userId) || isNaN(cryptoId)) {
-                res.status(400).json({ error: 'IDs inválidos' });
-                return;
-            }
-            const balance = await walletService_1.walletService.getBalanceByCrypto(userId, cryptoId);
-            if (balance === null) {
-                res.status(404).json({
-                    error: 'No se encontró balance para esta criptomoneda',
-                    message: 'El usuario no tiene una wallet para esta criptomoneda'
-                });
-                return;
-            }
-            res.json({
-                message: 'Balance obtenido exitosamente',
-                balance
-            });
-        }
-        catch (error) {
-            console.error('Error obteniendo balance por criptomoneda:', error);
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     }

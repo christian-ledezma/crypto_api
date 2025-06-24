@@ -9,6 +9,7 @@ router.get('/', auth_1.authenticateToken, walletController_1.WalletController.ge
 router.get('/crypto/:cryptoId/balance', auth_1.authenticateToken, walletController_1.WalletController.getBalanceByCrypto);
 router.post('/', auth_1.authenticateToken, validation_1.validateWallet.create, walletController_1.WalletController.createWallet);
 router.put('/:id/balance', auth_1.authenticateToken, validation_1.validateWallet.updateBalance, walletController_1.WalletController.updateWalletBalance);
+router.post('/transfer', auth_1.authenticateToken, validation_1.validateWallet.transfer, walletController_1.WalletController.transferBetweenWallets);
 router.delete('/:id', auth_1.authenticateToken, walletController_1.WalletController.deleteWallet);
 exports.default = router;
 //# sourceMappingURL=wallets.js.map

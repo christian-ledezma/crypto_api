@@ -1,12 +1,7 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userController = void 0;
 const userService_1 = require("../services/userService");
-const bcrypt_1 = __importDefault(require("bcrypt"));
-const config_1 = __importDefault(require("../config"));
 exports.userController = {
     createUser: async (req, res) => {
         try {
@@ -76,29 +71,6 @@ exports.userController = {
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     },
-    updateProfile: async (req, res) => {
-        try {
-            if (!req.user) {
-                res.status(401).json({ error: 'Usuario no autenticado' });
-                return;
-            }
-            const updateData = req.body;
-            const updatedUser = await userService_1.UserService.updateUser(req.user.id, updateData);
-            if (!updatedUser) {
-                res.status(404).json({ error: 'Usuario no encontrado' });
-                return;
-            }
-            const { password_hash, ...userProfile } = updatedUser;
-            res.json({
-                message: 'Perfil actualizado exitosamente',
-                user: userProfile
-            });
-        }
-        catch (error) {
-            console.error('Error actualizando perfil:', error);
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
     getUserById: async (req, res) => {
         try {
             const { id } = req.params;
@@ -118,46 +90,6 @@ exports.userController = {
         }
         catch (error) {
             console.error('Error obteniendo usuario:', error);
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
-    deleteAccount: async (req, res) => {
-        try {
-            if (!req.user) {
-                res.status(401).json({ error: 'Usuario no autenticado' });
-                return;
-            }
-            await userService_1.UserService.deleteUser(req.user.id);
-            res.json({ message: 'Cuenta eliminada exitosamente' });
-        }
-        catch (error) {
-            console.error('Error eliminando cuenta:', error);
-            res.status(500).json({ error: 'Error interno del servidor' });
-        }
-    },
-    changePassword: async (req, res) => {
-        try {
-            if (!req.user) {
-                res.status(401).json({ error: 'Usuario no autenticado' });
-                return;
-            }
-            const { currentPassword, newPassword } = req.body;
-            const user = await userService_1.UserService.getUserById(req.user.id);
-            if (!user) {
-                res.status(404).json({ error: 'Usuario no encontrado' });
-                return;
-            }
-            const isValidPassword = await bcrypt_1.default.compare(currentPassword, user.password_hash);
-            if (!isValidPassword) {
-                res.status(400).json({ error: 'Contraseña actual incorrecta' });
-                return;
-            }
-            const hashedPassword = await bcrypt_1.default.hash(newPassword, config_1.default.security.bcryptRounds);
-            await userService_1.UserService.changePassword(req.user.id, hashedPassword);
-            res.json({ message: 'Contraseña cambiada exitosamente' });
-        }
-        catch (error) {
-            console.error('Error cambiando contraseña:', error);
             res.status(500).json({ error: 'Error interno del servidor' });
         }
     }
