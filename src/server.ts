@@ -15,12 +15,23 @@ const PORT: number = parseInt(process.env.PORT || '3000');
 
 // Middleware de seguridad
 app.use(helmet());
+
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim());
+
 app.use(cors({
-  origin: ['http://localhost:4200', 'http://localhost:4201'],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+
 app.use(morgan('combined'));
 
 // Rate limiting
