@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { UserService } from './userService';
-import { User } from '../models/User';
+import { User, CreateUserInput, RegisterRequest } from '../models/User';
 import * as bcrypt from 'bcrypt';
 
 interface TokenPayload {
@@ -17,7 +17,7 @@ interface AuthTokens {
 }
 
 interface LoginResponse {
-  user: User;
+  user: Omit<User, 'password_hash'>; // Usuario sin password_hash
   tokens: AuthTokens;
 }
 
@@ -27,101 +27,130 @@ export class AuthService {
   private static readonly JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
   private static readonly REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
 
-  // Registrar nuevo usuario
-  static async register(userData: {
-    username: string;
-    email: string;
-    password_hash: string;
-    first_name: string;
-    last_name: string;
-    phone?: string;
-  }): Promise<LoginResponse> {
+  // Registrar nuevo usuario - CORREGIDO
+  static async register(userData: RegisterRequest): Promise<LoginResponse> {
     try {
-      // Crear el usuario usando UserService
-      const user = await UserService.createUser(userData);
-
-      // Generar tokens para el usuario recién creado
-      const tokens = this.generateTokens({
-        userId: user.id,
-        email: user.email,
-        username: user.username
+      console.log('AuthService.register - Datos recibidos:', {
+        ...userData,
+        password: '[OCULTO]'
       });
 
+      // Verificar si el usuario ya existe
+      const existingUser = await UserService.getUserByEmail(userData.email);
+      if (existingUser) {
+        throw new Error('El correo ya está registrado');
+      }
+
+      // Hashear la contraseña
+      const password_hash = await bcrypt.hash(userData.password, 10);
+
+      // Crear objeto para UserService (con password_hash, sin password)
+      const createUserData: CreateUserInput = {
+        username: userData.username,
+        email: userData.email,
+        password_hash, // <- Aquí está el hash
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        phone: userData.phone,
+        email_verified: userData.email_verified || false
+      };
+
+      console.log('AuthService.register - Creando usuario con:', {
+        ...createUserData,
+        password_hash: '[HASH_GENERADO]'
+      });
+
+      // Crear usuario
+      const newUser = await UserService.createUser(createUserData);
+
+      // Generar tokens
+      const tokens = this.generateTokens({
+        userId: newUser.id,
+        email: newUser.email,
+        username: newUser.username
+      });
+
+      // Retornar usuario sin password_hash
+      const { password_hash: _, ...userWithoutPassword } = newUser;
+
       return {
-        user,
+        user: userWithoutPassword,
         tokens
       };
     } catch (error) {
-      console.error('Error en registro:', error);
+      console.error('Error en registro (AuthService):', error);
       throw error;
     }
   }
 
-  // Iniciar sesión
+  // Iniciar sesión - MEJORADO
   static async login(email: string, password: string): Promise<LoginResponse> {
     try {
+      console.log('AuthService.login - Intentando login para:', email);
+      
       const userWithPassword = await UserService.getUserWithPassword(email);
       
       if (!userWithPassword) {
+        console.log('AuthService.login - Usuario no encontrado');
         throw new Error('Credenciales inválidas');
       }
 
+      console.log('AuthService.login - Usuario encontrado:', {
+        id: userWithPassword.id,
+        email: userWithPassword.email,
+        hasPassword: !!userWithPassword.password_hash
+      });
+
       // Verificar si la contraseña almacenada es un hash bcrypt válido
-      const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$');
+      const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$') || 
+                                   userWithPassword.password_hash.startsWith('$2b$');
 
       let isValidPassword = false;
 
       if (isStoredPasswordHash) {
         // Comparar usando bcrypt
+        console.log('AuthService.login - Verificando hash bcrypt');
         isValidPassword = await bcrypt.compare(password, userWithPassword.password_hash);
       } else {
         // Comparar en texto plano (para migración)
+        console.log('AuthService.login - Verificando texto plano y migrando');
         isValidPassword = password === userWithPassword.password_hash;
         
         // Migrar a bcrypt si es válido
         if (isValidPassword) {
           const newHash = await bcrypt.hash(password, 10);
           await UserService.updateUserPassword(userWithPassword.id, newHash);
+          console.log('AuthService.login - Password migrada a bcrypt');
         }
       }
 
       if (!isValidPassword) {
+        console.log('AuthService.login - Contraseña inválida');
         throw new Error('Credenciales inválidas');
       }
 
-      // Crear objeto user sin el hash de contraseña
-      const user: User = {
-        id: userWithPassword.id,
-        username: userWithPassword.username,
-        email: userWithPassword.email,
-        password_hash: userWithPassword.password_hash, 
-        first_name: userWithPassword.first_name,
-        last_name: userWithPassword.last_name,
-        phone: userWithPassword.phone,
-        email_verified: userWithPassword.email_verified,
-        created_at: userWithPassword.created_at,
-        updated_at: userWithPassword.updated_at
-      };
+      console.log('AuthService.login - Login exitoso');
 
-      // Generar tokens (asegúrate de tener esta función implementada)
+      // Crear objeto user sin el hash de contraseña
+      const { password_hash: _, ...userWithoutPassword } = userWithPassword;
+
+      // Generar tokens
       const tokens = this.generateTokens({
-        userId: user.id,
-        email: user.email,
-        username: user.username
+        userId: userWithPassword.id,
+        email: userWithPassword.email,
+        username: userWithPassword.username
       });
 
-      // Retornar explícitamente el objeto requerido
       return {
-        user,
+        user: userWithoutPassword,
         tokens
       };
       
     } catch (error) {
-      console.error('Error en login:', error);
+      console.error('Error en login (AuthService):', error);
       throw error;
     }
   }
-
 
   // Buscar usuario por email
   static async findUserByEmail(email: string): Promise<User | null> {
@@ -135,15 +164,15 @@ export class AuthService {
   }
 
   // Buscar usuario por username   
-    static async findUserByUsername(username: string): Promise<User | null> {
-        try {
-        const user = await UserService.getUserByUsername(username);
-        return user || null;
-        } catch (error) {
-        console.error('Error buscando usuario por username:', error);
-        throw new Error('Error al buscar usuario por username');
-        }
+  static async findUserByUsername(username: string): Promise<User | null> {
+    try {
+      const user = await UserService.getUserByUsername(username);
+      return user || null;
+    } catch (error) {
+      console.error('Error buscando usuario por username:', error);
+      throw new Error('Error al buscar usuario por username');
     }
+  }
 
   // Generar tokens de acceso y refresh
   static generateTokens(payload: TokenPayload): AuthTokens {

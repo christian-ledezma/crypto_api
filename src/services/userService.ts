@@ -1,17 +1,11 @@
 import bcrypt from 'bcrypt';
 import { db } from './databaseService';
 import { User } from '../models/User';
+import { CreateUserInput } from '../models/User';
 
 export class UserService {
   // Crear un nuevo usuario
-  static async createUser(userData: {
-    username: string;
-    email: string;
-    password_hash: string;
-    first_name: string;
-    last_name: string;
-    phone?: string;
-  }): Promise<User> {
+static async createUser(userData: CreateUserInput): Promise<User> {
     try {
       // Verificar si el usuario ya existe
       const existingUser = await this.getUserByEmail(userData.email);
@@ -25,23 +19,23 @@ export class UserService {
         throw new Error('El username ya está en uso');
       }
 
-      // Hash de la contraseña
-      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
-      const passwordHash = await bcrypt.hash(userData.password_hash, saltRounds);
+      // ✅ Ahora recibimos password_hash (ya hasheada)
+      const passwordHash = userData.password_hash;
 
       // Insertar usuario en la base de datos
       const query = `
         INSERT INTO USERS (username, email, password_hash, first_name, last_name, phone, email_verified)
-        VALUES (?, ?, ?, ?, ?, ?, FALSE)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
       
       const params = [
         userData.username,
         userData.email,
-        passwordHash,
+        passwordHash, // ✅ Ya es un hash válido
         userData.first_name,
         userData.last_name,
-        userData.phone || null
+        userData.phone || null,
+        userData.email_verified !== undefined ? userData.email_verified : false
       ];
 
       const result = await db.execute(query, params);

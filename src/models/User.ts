@@ -7,17 +7,29 @@ export interface User {
   last_name: string;
   phone?: string;
   email_verified: boolean;
-  created_at: Date;
-  updated_at: Date;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
-export interface CreateUserInput {
+export interface RegisterRequest {
   username: string;
   email: string;
-  password_hash: string;
+  password: string; 
   first_name: string;
   last_name: string;
   phone?: string;
+  email_verified?: boolean;
+}
+
+// Esta interfaz es para crear usuarios en la base de datos
+export interface CreateUserInput {
+  username: string;
+  email: string;
+  password_hash: string; // <- Contraseña ya hasheada
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  email_verified?: boolean;
 }
 
 export interface UpdateUserInput {
@@ -27,4 +39,19 @@ export interface UpdateUserInput {
   last_name?: string;
   phone?: string;
   email_verified?: boolean;
+}
+
+// Define la interfaz para la respuesta de login
+export interface LoginResponse {
+  user: Omit<User, 'password_hash'>;
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  };
+}
+
+// Interfaz para el usuario con contraseña (solo para uso interno)
+export interface UserWithPassword extends User {
+  password_hash: string; 
 }
