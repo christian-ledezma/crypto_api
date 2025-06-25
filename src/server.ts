@@ -75,7 +75,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Middleware de logging para debugging
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`📥 ${req.method} ${req.path} - Origin: ${req.get('origin') || 'No origin'}`);
   next();
 });
