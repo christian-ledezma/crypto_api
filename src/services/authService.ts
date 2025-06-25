@@ -27,7 +27,7 @@ export class AuthService {
   private static readonly JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
   private static readonly REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
 
-  // Registrar nuevo usuario - CORREGIDO
+  // Registrar nuevo usuario
   static async register(userData: RegisterRequest): Promise<LoginResponse> {
     try {
       console.log('AuthService.register - Datos recibidos:', {
@@ -83,88 +83,94 @@ export class AuthService {
     }
   }
 
-  // Iniciar sesión - MEJORADO
+  // Iniciar sesión
   static async login(email: string, password: string): Promise<LoginResponse> {
-    try {
-      console.log('🔍 === INICIO AuthService.login ===');
-      console.log('📧 Email recibido:', email);
-      console.log('🔑 Password presente:', !!password);
-      
-      console.log('🔎 Buscando usuario en DB...');
-      const userWithPassword = await UserService.getUserWithPassword(email);
-      
-      if (!userWithPassword) {
-        console.log('❌ Usuario NO encontrado en DB');
-        throw new Error('Credenciales inválidas');
-      }
-
-      console.log('✅ Usuario encontrado:', {
-        id: userWithPassword.id,
-        email: userWithPassword.email,
-        username: userWithPassword.username,
-        hasPassword: !!userWithPassword.password_hash
-      });
-
-      // ✅ Verificar que password_hash existe
-      if (!userWithPassword.password_hash) {
-        console.log('❌ Usuario no tiene password_hash');
-        throw new Error('Credenciales inválidas');
-      }
-
-      // Verificar si la contraseña almacenada es un hash bcrypt válido
-      const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$') || 
-                                   userWithPassword.password_hash.startsWith('$2b$');
-
-      console.log('🔐 Es hash bcrypt:', isStoredPasswordHash);
-      console.log('🔐 Hash preview:', userWithPassword.password_hash.substring(0, 10) + '...');
-
-      let isValidPassword = false;
-
-      if (isStoredPasswordHash) {
-        console.log('🔒 Verificando con bcrypt...');
-        isValidPassword = await bcrypt.compare(password, userWithPassword.password_hash);
-        console.log('✅ Resultado bcrypt.compare:', isValidPassword);
-      } else {
-        console.log('📝 Verificando texto plano...');
-        isValidPassword = password === userWithPassword.password_hash;
-        console.log('✅ Resultado comparación texto plano:', isValidPassword);
-        
-        // Migrar a bcrypt si es válido
-        if (isValidPassword) {
-          console.log('🔄 Migrando password a bcrypt...');
-          const newHash = await bcrypt.hash(password, 10);
-          await UserService.updateUserPassword(userWithPassword.id, newHash);
-          console.log('✅ Password migrada a bcrypt');
-        }
-      }
-
-      if (!isValidPassword) {
-        console.log('❌ Contraseña INVÁLIDA');
-        throw new Error('Credenciales inválidas');
-      }
-
-      console.log('🎉 Login EXITOSO');
-
-      // Crear objeto user sin el hash de contraseña
-      const { password_hash, ...userWithoutPassword } = userWithPassword;
-
-      // Generar tokens
-      const tokens = this.generateTokens({
-        userId: userWithPassword.id,
-        email: userWithPassword.email,
-        username: userWithPassword.username
-      });
-
-      return {
-        user: userWithoutPassword,
-        tokens
-      };
-      
-    } catch (error) {
-      console.error('🚨 Error en AuthService.login:', error);
-      throw error;
+  try {
+    console.log('🔍 === INICIO AuthService.login ===');
+    
+    // Aplicar trim() a las credenciales
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    console.log('📧 Email recibido:', trimmedEmail);
+    console.log('🔑 Password presente:', !!trimmedPassword);
+    
+    console.log('🔎 Buscando usuario en DB...');
+    const userWithPassword = await UserService.getUserWithPassword(trimmedEmail);
+    
+    if (!userWithPassword) {
+      console.log('❌ Usuario NO encontrado en DB');
+      throw new Error('Credenciales inválidas');
     }
+
+    console.log('✅ Usuario encontrado:', {
+      id: userWithPassword.id,
+      email: userWithPassword.email,
+      username: userWithPassword.username,
+      hasPassword: !!userWithPassword.password_hash
+    });
+
+    // Verificar que password_hash existe
+    if (!userWithPassword.password_hash) {
+      console.log('❌ Usuario no tiene password_hash');
+      throw new Error('Credenciales inválidas');
+    }
+
+    // Verificar si es un hash bcrypt válido
+    const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$') || 
+                                 userWithPassword.password_hash.startsWith('$2b$');
+
+    console.log('🔐 Es hash bcrypt:', isStoredPasswordHash);
+    console.log('🔐 Hash preview:', userWithPassword.password_hash.substring(0, 10) + '...');
+
+    let isValidPassword = false;
+
+    if (isStoredPasswordHash) {
+      console.log('🔒 Verificando con bcrypt...');
+      // Usar contraseña con trim()
+      isValidPassword = await bcrypt.compare(trimmedPassword, userWithPassword.password_hash);
+      console.log('✅ Resultado bcrypt.compare:', isValidPassword);
+    } else {
+      console.log('📝 Verificando texto plano...');
+      // Comparar con trim()
+      isValidPassword = trimmedPassword === userWithPassword.password_hash;
+      console.log('✅ Resultado comparación texto plano:', isValidPassword);
+      
+      // Migrar a bcrypt si es válido
+      if (isValidPassword) {
+        console.log('🔄 Migrando password a bcrypt...');
+        // Usar contraseña con trim() para el nuevo hash
+        const newHash = await bcrypt.hash(trimmedPassword, 10);
+        await UserService.updateUserPassword(userWithPassword.id, newHash);
+        console.log('✅ Password migrada a bcrypt');
+      }
+    }
+
+    if (!isValidPassword) {
+      console.log('❌ Contraseña INVÁLIDA');
+      throw new Error('Credenciales inválidas');
+    }
+
+    console.log('🎉 Login EXITOSO');
+
+    const { password_hash, ...userWithoutPassword } = userWithPassword;
+
+    const tokens = this.generateTokens({
+      userId: userWithPassword.id,
+      email: userWithPassword.email,
+      username: userWithPassword.username
+    });
+
+    return {
+      user: userWithoutPassword,
+      tokens
+    };
+    
+  } catch (error) {
+    console.error('🚨 Error en AuthService.login:', error);
+    throw error;
   }
+}
 
   // Buscar usuario por email
   static async findUserByEmail(email: string): Promise<User | null> {
