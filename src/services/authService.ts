@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { UserService } from './userService';
 import { User } from '../models/User';
+import * as bcrypt from 'bcrypt';
 
 interface TokenPayload {
   userId: number;
@@ -59,16 +60,31 @@ export class AuthService {
   // Iniciar sesión
   static async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      // Obtener usuario con contraseña
       const userWithPassword = await UserService.getUserWithPassword(email);
       
       if (!userWithPassword) {
         throw new Error('Credenciales inválidas');
       }
 
-      // Verificar contraseña
-      const isValidPassword = await UserService.verifyPassword(password, userWithPassword.password_hash);
-      
+      // Verificar si la contraseña almacenada es un hash bcrypt válido
+      const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$');
+
+      let isValidPassword = false;
+
+      if (isStoredPasswordHash) {
+        // Comparar usando bcrypt
+        isValidPassword = await bcrypt.compare(password, userWithPassword.password_hash);
+      } else {
+        // Comparar en texto plano (para migración)
+        isValidPassword = password === userWithPassword.password_hash;
+        
+        // Migrar a bcrypt si es válido
+        if (isValidPassword) {
+          const newHash = await bcrypt.hash(password, 10);
+          await UserService.updateUserPassword(userWithPassword.id, newHash);
+        }
+      }
+
       if (!isValidPassword) {
         throw new Error('Credenciales inválidas');
       }
@@ -78,7 +94,7 @@ export class AuthService {
         id: userWithPassword.id,
         username: userWithPassword.username,
         email: userWithPassword.email,
-        password_hash: userWithPassword.password_hash, // Mantener el hash para futuras verificaciones
+        password_hash: userWithPassword.password_hash, 
         first_name: userWithPassword.first_name,
         last_name: userWithPassword.last_name,
         phone: userWithPassword.phone,
@@ -87,22 +103,25 @@ export class AuthService {
         updated_at: userWithPassword.updated_at
       };
 
-      // Generar tokens
+      // Generar tokens (asegúrate de tener esta función implementada)
       const tokens = this.generateTokens({
         userId: user.id,
         email: user.email,
         username: user.username
       });
 
+      // Retornar explícitamente el objeto requerido
       return {
         user,
         tokens
       };
+      
     } catch (error) {
       console.error('Error en login:', error);
       throw error;
     }
   }
+
 
   // Buscar usuario por email
   static async findUserByEmail(email: string): Promise<User | null> {

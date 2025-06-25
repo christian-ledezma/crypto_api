@@ -184,4 +184,23 @@ export class UserService {
       return false;
     }
   }
+
+  // Actualizar password
+  static async updateUserPassword(userId: number, newPassword: string): Promise<void> {
+    try {
+      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
+      const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+      const query = `
+        UPDATE USERS
+        SET password_hash = ?, updated_at = NOW()
+        WHERE id = ?
+      `;
+
+      await db.execute(query, [passwordHash, userId]);
+    } catch (error) {
+      console.error('Error al actualizar contraseña:', error);
+      throw error;
+    }
+  } 
 }
