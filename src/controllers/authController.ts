@@ -12,7 +12,7 @@ interface AuthRequest extends Request {
 }
 
 export const authController = {
-  // POST /api/auth/register - CORREGIDO
+  // POST /api/auth/register - CORREGIDO  
   register: async (req: Request, res: Response): Promise<void> => {
     try {
       const userData = req.body as RegisterRequest;
@@ -58,53 +58,62 @@ export const authController = {
 
   // POST /api/auth/login - MEJORADO
   login: async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { email, password } = req.body;
+  try {
+    console.log('=== LOGIN REQUEST ===');
+    console.log('Headers:', req.headers);
+    console.log('Body recibido:', { ...req.body, password: '[HIDDEN]' });
+    console.log('Content-Type:', req.headers['content-type']);
 
-      // Validar que los datos lleguen
-      if (!email || !password) {
-        res.status(400).json({ error: 'Email y contraseña son requeridos' });
-        return;
-      }
+    const { email, password } = req.body;
 
-      console.log('Intentando login para:', email);
-
-      // Usar el AuthService que ya maneja toda la lógica
-      const loginResponse = await AuthService.login(email, password);
-
-      // Respuesta exitosa
-      res.json({
-        success: true,
-        message: 'Login exitoso',
-        token: loginResponse.tokens.accessToken,
-        refreshToken: loginResponse.tokens.refreshToken,
-        expiresIn: loginResponse.tokens.expiresIn,
-        user: {
-          id: loginResponse.user.id,
-          username: loginResponse.user.username,
-          email: loginResponse.user.email,
-          first_name: loginResponse.user.first_name,
-          last_name: loginResponse.user.last_name,
-          email_verified: loginResponse.user.email_verified
-        }
-      });
-    } catch (error: any) {
-      console.error('Error completo en login:', error);
-      
-      if (error?.message === 'Credenciales inválidas') {
-        res.status(401).json({ 
-          error: 'Credenciales inválidas',
-          success: false 
-        });
-      } else {
-        res.status(500).json({ 
-          error: 'Error interno del servidor',
-          success: false,
-          details: error.message // Solo en desarrollo
-        });
-      }
+    // Validar que los datos lleguen
+    if (!email || !password) {
+      console.log('❌ Faltan email o password');
+      res.status(400).json({ error: 'Email y contraseña son requeridos' });
+      return;
     }
-  },
+
+    console.log('✅ Datos válidos, intentando login para:', email);
+
+    // Usar el AuthService que ya maneja toda la lógica
+    const loginResponse = await AuthService.login(email, password);
+
+    console.log('✅ Login exitoso para:', email);
+
+    // Respuesta exitosa
+    res.json({
+      success: true,
+      message: 'Login exitoso',
+      token: loginResponse.tokens.accessToken,
+      refreshToken: loginResponse.tokens.refreshToken,
+      expiresIn: loginResponse.tokens.expiresIn,
+      user: {
+        id: loginResponse.user.id,
+        username: loginResponse.user.username,
+        email: loginResponse.user.email,
+        first_name: loginResponse.user.first_name,
+        last_name: loginResponse.user.last_name,
+        email_verified: loginResponse.user.email_verified
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Error completo en login:', error);
+    console.error('Stack trace:', error.stack);
+    
+    if (error?.message === 'Credenciales inválidas') {
+      res.status(401).json({ 
+        error: 'Credenciales inválidas',
+        success: false 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Error interno del servidor',
+        success: false,
+        details: error.message
+      });
+    }
+  }
+},
 
   // POST /api/auth/logout
   logout: async (_req: Request, res: Response): Promise<void> => {
