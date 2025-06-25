@@ -16,22 +16,48 @@ const PORT: number = parseInt(process.env.PORT || '3000');
 // Middleware de seguridad
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim());
+// CONFIGURACIÓN CORS CORREGIDA
+const corsOrigins = process.env.CORS_ORIGINS;
+let allowedOrigins: string[] = [];
+
+if (corsOrigins) {
+  allowedOrigins = corsOrigins.split(',').map(o => o.trim()).filter(o => o.length > 0);
+} else {
+  // Orígenes por defecto para desarrollo
+  allowedOrigins = [
+    'http://localhost:4200',
+    'http://localhost:3000',
+    'http://127.0.0.1:4200',
+    'http://127.0.0.1:3000'
+  ];
+}
+
+console.log('🌐 Orígenes CORS permitidos:', allowedOrigins);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Permitir requests sin origin (como Postman, aplicaciones móviles)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('No permitido por CORS'));
+      console.error(`❌ Origen no permitido por CORS: ${origin}`);
+      console.log('✅ Orígenes permitidos:', allowedOrigins);
+      callback(new Error(`Origen ${origin} no permitido por CORS`));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  // Importante: manejar preflight requests
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
-
+// Logging mejorado
 app.use(morgan('combined'));
 
 // Rate limiting
@@ -47,6 +73,12 @@ app.use(limiter);
 // Middleware para parsing JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Middleware de logging para debugging
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`📥 ${req.method} ${req.path} - Origin: ${req.get('origin') || 'No origin'}`);
+  next();
+});
 
 // Importar y registrar rutas
 const routes = [
@@ -73,7 +105,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    nodeEnv: process.env.NODE_ENV || 'development'
+    nodeEnv: process.env.NODE_ENV || 'development',
+    corsOrigins: allowedOrigins
   });
 });
 
@@ -93,13 +126,13 @@ app.use(errorHandler);
 const startServer = async (): Promise<void> => {
   try {
     await db.execute('SELECT 1');
-    
     app.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
       console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+      console.log('🌐 CORS configurado para:', allowedOrigins);
       console.log('📌 Rutas disponibles:');
-      routes.forEach(route => console.log(`   - ${route.path}`));
-      console.log(`   - /api/health`);
+      routes.forEach(route => console.log(` - ${route.path}`));
+      console.log(` - /api/health`);
     });
   } catch (error) {
     console.error('❌ Error al iniciar el servidor:', error);
