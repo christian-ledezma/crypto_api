@@ -86,53 +86,67 @@ export class AuthService {
   // Iniciar sesión - MEJORADO
   static async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      console.log('AuthService.login - Intentando login para:', email);
+      console.log('🔍 === INICIO AuthService.login ===');
+      console.log('📧 Email recibido:', email);
+      console.log('🔑 Password presente:', !!password);
       
+      console.log('🔎 Buscando usuario en DB...');
       const userWithPassword = await UserService.getUserWithPassword(email);
       
       if (!userWithPassword) {
-        console.log('AuthService.login - Usuario no encontrado');
+        console.log('❌ Usuario NO encontrado en DB');
         throw new Error('Credenciales inválidas');
       }
 
-      console.log('AuthService.login - Usuario encontrado:', {
+      console.log('✅ Usuario encontrado:', {
         id: userWithPassword.id,
         email: userWithPassword.email,
+        username: userWithPassword.username,
         hasPassword: !!userWithPassword.password_hash
       });
+
+      // ✅ Verificar que password_hash existe
+      if (!userWithPassword.password_hash) {
+        console.log('❌ Usuario no tiene password_hash');
+        throw new Error('Credenciales inválidas');
+      }
 
       // Verificar si la contraseña almacenada es un hash bcrypt válido
       const isStoredPasswordHash = userWithPassword.password_hash.startsWith('$2a$') || 
                                    userWithPassword.password_hash.startsWith('$2b$');
 
+      console.log('🔐 Es hash bcrypt:', isStoredPasswordHash);
+      console.log('🔐 Hash preview:', userWithPassword.password_hash.substring(0, 10) + '...');
+
       let isValidPassword = false;
 
       if (isStoredPasswordHash) {
-        // Comparar usando bcrypt
-        console.log('AuthService.login - Verificando hash bcrypt');
+        console.log('🔒 Verificando con bcrypt...');
         isValidPassword = await bcrypt.compare(password, userWithPassword.password_hash);
+        console.log('✅ Resultado bcrypt.compare:', isValidPassword);
       } else {
-        // Comparar en texto plano (para migración)
-        console.log('AuthService.login - Verificando texto plano y migrando');
+        console.log('📝 Verificando texto plano...');
         isValidPassword = password === userWithPassword.password_hash;
+        console.log('✅ Resultado comparación texto plano:', isValidPassword);
         
         // Migrar a bcrypt si es válido
         if (isValidPassword) {
+          console.log('🔄 Migrando password a bcrypt...');
           const newHash = await bcrypt.hash(password, 10);
           await UserService.updateUserPassword(userWithPassword.id, newHash);
-          console.log('AuthService.login - Password migrada a bcrypt');
+          console.log('✅ Password migrada a bcrypt');
         }
       }
 
       if (!isValidPassword) {
-        console.log('AuthService.login - Contraseña inválida');
+        console.log('❌ Contraseña INVÁLIDA');
         throw new Error('Credenciales inválidas');
       }
 
-      console.log('AuthService.login - Login exitoso');
+      console.log('🎉 Login EXITOSO');
 
       // Crear objeto user sin el hash de contraseña
-      const { password_hash: _, ...userWithoutPassword } = userWithPassword;
+      const { password_hash, ...userWithoutPassword } = userWithPassword;
 
       // Generar tokens
       const tokens = this.generateTokens({
@@ -147,7 +161,7 @@ export class AuthService {
       };
       
     } catch (error) {
-      console.error('Error en login (AuthService):', error);
+      console.error('🚨 Error en AuthService.login:', error);
       throw error;
     }
   }

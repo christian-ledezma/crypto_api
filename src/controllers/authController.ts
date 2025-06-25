@@ -58,62 +58,79 @@ export const authController = {
 
   // POST /api/auth/login - MEJORADO
   login: async (req: Request, res: Response): Promise<void> => {
-  try {
-    console.log('=== LOGIN REQUEST ===');
-    console.log('Headers:', req.headers);
-    console.log('Body recibido:', { ...req.body, password: '[HIDDEN]' });
-    console.log('Content-Type:', req.headers['content-type']);
+    try {
+      console.log('🔍 === INICIO DEBUG LOGIN ===');
+      console.log('📨 Headers recibidos:', JSON.stringify(req.headers, null, 2));
+      console.log('📦 Body recibido:', { ...req.body, password: '[HIDDEN]' });
+      console.log('🔧 Content-Type:', req.headers['content-type']);
+      console.log('📍 URL:', req.url);
+      console.log('🔀 Method:', req.method);
 
-    const { email, password } = req.body;
+      const { email, password } = req.body;
 
-    // Validar que los datos lleguen
-    if (!email || !password) {
-      console.log('❌ Faltan email o password');
-      res.status(400).json({ error: 'Email y contraseña son requeridos' });
-      return;
-    }
-
-    console.log('✅ Datos válidos, intentando login para:', email);
-
-    // Usar el AuthService que ya maneja toda la lógica
-    const loginResponse = await AuthService.login(email, password);
-
-    console.log('✅ Login exitoso para:', email);
-
-    // Respuesta exitosa
-    res.json({
-      success: true,
-      message: 'Login exitoso',
-      token: loginResponse.tokens.accessToken,
-      refreshToken: loginResponse.tokens.refreshToken,
-      expiresIn: loginResponse.tokens.expiresIn,
-      user: {
-        id: loginResponse.user.id,
-        username: loginResponse.user.username,
-        email: loginResponse.user.email,
-        first_name: loginResponse.user.first_name,
-        last_name: loginResponse.user.last_name,
-        email_verified: loginResponse.user.email_verified
+      // Validar que los datos lleguen
+      if (!email || !password) {
+        console.log('❌ FALLO: Faltan email o password');
+        console.log('📧 Email recibido:', email);
+        console.log('🔑 Password recibido:', password ? '[PRESENTE]' : '[AUSENTE]');
+        res.status(400).json({ error: 'Email y contraseña son requeridos' });
+        return;
       }
-    });
-  } catch (error: any) {
-    console.error('❌ Error completo en login:', error);
-    console.error('Stack trace:', error.stack);
-    
-    if (error?.message === 'Credenciales inválidas') {
-      res.status(401).json({ 
-        error: 'Credenciales inválidas',
-        success: false 
-      });
-    } else {
-      res.status(500).json({ 
-        error: 'Error interno del servidor',
-        success: false,
-        details: error.message
-      });
+
+      console.log('✅ Datos válidos recibidos');
+      console.log('📧 Email a procesar:', email);
+      console.log('🔑 Password presente:', !!password);
+
+      // Llamar al AuthService
+      console.log('🚀 Llamando a AuthService.login...');
+      const loginResponse = await AuthService.login(email, password);
+      console.log('✅ AuthService.login exitoso');
+
+      // Respuesta exitosa
+      const response = {
+        success: true,
+        message: 'Login exitoso',
+        token: loginResponse.tokens.accessToken,
+        refreshToken: loginResponse.tokens.refreshToken,
+        expiresIn: loginResponse.tokens.expiresIn,
+        user: {
+          id: loginResponse.user.id,
+          username: loginResponse.user.username,
+          email: loginResponse.user.email,
+          first_name: loginResponse.user.first_name,
+          last_name: loginResponse.user.last_name,
+          email_verified: loginResponse.user.email_verified
+        }
+      };
+
+      console.log('📤 Enviando respuesta exitosa:', { ...response, token: '[HIDDEN]' });
+      res.json(response);
+
+    } catch (error: any) {
+      console.log('🚨 === ERROR EN LOGIN ===');
+      console.error('❌ Error completo:', error);
+      console.error('📋 Error message:', error.message);
+      console.error('📊 Error stack:', error.stack);
+      console.error('🔍 Error type:', typeof error);
+      console.error('🏷️ Error constructor:', error.constructor.name);
+      
+      if (error?.message === 'Credenciales inválidas') {
+        console.log('🔐 Enviando 401 - Credenciales inválidas');
+        res.status(401).json({ 
+          error: 'Credenciales inválidas',
+          success: false 
+        });
+      } else {
+        console.log('💥 Enviando 500 - Error interno');
+        res.status(500).json({ 
+          error: 'Error interno del servidor',
+          success: false,
+          details: error.message
+        });
+      }
     }
-  }
-},
+  },
+
 
   // POST /api/auth/logout
   logout: async (_req: Request, res: Response): Promise<void> => {

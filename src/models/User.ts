@@ -51,6 +51,10 @@ export interface LoginResponse {
   };
 }
 
+export interface UserWithPassword extends User {
+  password_hash: string;
+}
+
 // Interfaz para el usuario con contraseña (solo para uso interno)
 export interface UserWithPassword extends User {
   password_hash: string; 

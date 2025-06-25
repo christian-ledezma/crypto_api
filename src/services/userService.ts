@@ -120,35 +120,31 @@ static async createUser(userData: CreateUserInput): Promise<User> {
   }
 
   // Obtener usuario con contraseña (para autenticación)
-  static async getUserWithPassword(email: string): Promise<(User & { password_hash: string }) | null> {
+  static async getUserWithPassword(email: string): Promise<User | null> {
     try {
+      console.log('🔍 === UserService.getUserWithPassword ===');
+      console.log('📧 Buscando email:', email);
       const query = `
-        SELECT id, username, email, password_hash, first_name, last_name, phone, email_verified
-        FROM USERS 
+        SELECT id, username, email, password_hash, first_name, last_name, 
+               phone, email_verified, created_at, updated_at
+        FROM users 
         WHERE email = ?
       `;
+      const result = await db.execute(query, [email.toLowerCase().trim()]);
+      const user = result[0] || null;
       
-      const result = await db.execute(query, [email]);
+      //const user = await this.getUserByEmail(email);
       
-      if (result.length === 0) {
-        return null;
+      console.log('📊 Resultado de búsqueda:', user ? 'ENCONTRADO' : 'NO ENCONTRADO');
+      if (user) {
+        console.log('🆔 Usuario encontrado - ID:', user.id);
+        console.log('📧 Email:', user.email);
+        console.log('👤 Username:', user.username);
       }
-
-      const row = result[0];
-      return {
-        id: row.id,
-        username: row.username,
-        email: row.email,
-        password_hash: row.password_hash,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        phone: row.phone,
-        email_verified: row.email_verified,
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      };
+      
+      return user;
     } catch (error) {
-      console.error('Error al obtener usuario con contraseña:', error);
+      console.error('🚨 Error en getUserWithPassword:', error);
       throw error;
     }
   }
