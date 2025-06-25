@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { AuthService } from '../services/authService';
 import { CreateUserInput } from '../models/User';
 import config from '../config';
@@ -51,61 +50,48 @@ export const authController = {
           last_name: registerResponse.user.last_name
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error en registro:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   },
 
-  // POST /api/auth/login
+  // POST /api/auth/login - VERSIÓN CORREGIDA
   login: async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
 
-      // Buscar usuario
-      const user = await AuthService.findUserByEmail(email);
-      if (!user) {
-        res.status(401).json({ error: 'Credenciales inválidas' });
+      // Validar que los datos lleguen
+      if (!email || !password) {
+        res.status(400).json({ error: 'Email y contraseña son requeridos' });
         return;
       }
 
-      // Verificar contraseña
-      const isValidPassword = await bcrypt.compare(password, user.password_hash);
-      if (!isValidPassword) {
-        res.status(401).json({ error: 'Credenciales inválidas' });
-        return;
-      }
+      console.log('Intentando login para:', email); // Debug
 
-      // Generar JWT
-      if (!config.security.jwtSecret) {
-        res.status(500).json({ error: 'Configuración JWT no encontrada' });
-        return;
-      }
-
-      const token = jwt.sign(
-        { 
-          id: user.id, 
-          username: user.username, 
-          email: user.email 
-        },
-        config.security.jwtSecret,
-        { expiresIn: '24h' }
-      );
+      // Usar el AuthService que ya maneja toda la lógica
+      const loginResponse = await AuthService.login(email, password);
 
       res.json({
         message: 'Login exitoso',
-        token,
+        token: loginResponse.tokens.accessToken,
+        refreshToken: loginResponse.tokens.refreshToken,
         user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name
+          id: loginResponse.user.id,
+          username: loginResponse.user.username,
+          email: loginResponse.user.email,
+          first_name: loginResponse.user.first_name,
+          last_name: loginResponse.user.last_name
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error en login:', error);
-      res.status(500).json({ error: 'Error interno del servidor' });
+      
+      if (error?.message === 'Credenciales inválidas') {
+        res.status(401).json({ error: 'Credenciales inválidas' });
+      } else {
+        res.status(500).json({ error: 'Error interno del servidor' });
+      }
     }
   },
 
@@ -118,38 +104,24 @@ export const authController = {
   // POST /api/auth/refresh
   refreshToken: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { token } = req.body;
+      const { refreshToken } = req.body;
       
-      if (!token) {
-        res.status(401).json({ error: 'Token requerido' });
+      if (!refreshToken) {
+        res.status(401).json({ error: 'Refresh token requerido' });
         return;
       }
 
-      if (!config.security.jwtSecret) {
-        res.status(500).json({ error: 'Configuración JWT no encontrada' });
-        return;
-      }
-
-      // Verificar token actual
-      const decoded = jwt.verify(token, config.security.jwtSecret) as any;
-      
-      // Generar nuevo token
-      const newToken = jwt.sign(
-        { 
-          id: decoded.id, 
-          username: decoded.username, 
-          email: decoded.email 
-        },
-        config.security.jwtSecret,
-        { expiresIn: '24h' }
-      );
+      // Usar el AuthService para refrescar el token
+      const newTokens = await AuthService.refreshAccessToken(refreshToken);
 
       res.json({
         message: 'Token renovado',
-        token: newToken
+        token: newTokens.accessToken,
+        refreshToken: newTokens.refreshToken
       });
-    } catch (error) {
-      res.status(401).json({ error: 'Token inválido' });
+    } catch (error: any) {
+      console.error('Error renovando token:', error);
+      res.status(401).json({ error: 'Refresh token inválido o expirado' });
     }
   },
 
